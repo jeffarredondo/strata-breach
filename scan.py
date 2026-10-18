@@ -2,6 +2,7 @@
 """Line>=3 breakout scanner + swing-low trail monitor.  Same logic as line3_explore.py (true ATR, N=3 pivots, tol 0.5, spacing 5, wick poke <=1 ATR).
 
     python3 scan.py                         # IAU 4H, PPLT 4H, BTC-USD 1D, positions from positions.csv
+    python3 scan.py --log log/scan_log.csv                # also append a row per symbol per new closed bar (re-runs never duplicate)
     python3 scan.py --symbols IAU:4h,BTC-USD:1d --positions my.csv
     python3 scan.py --csv btc.csv --label BTCUSD --tf 1d      # test on a local Date,Open,High,Low,Close file
 
@@ -123,17 +124,58 @@ def trail(s, e, ent, j):
     return dict(level=lvl, floor=floor, swing=sw if k is not None else None, swing_bar=k, hit=s.c[j] <= lvl or (j - e) >= CAP)
 
 
-def model_position(s, lookback=400):
-    """What the rules (take every signal, one position at a time, swing-low exit) would be holding right now.  Returns entry bar index or None."""
+def model_position(s, lookback=400, start=None):
+    """What the rules (take every signal, one position at a time, swing-low exit) would be holding right now.  Returns (entry bar index, signal) or (None, None).
+    start: only signals on bars at/after this timestamp count (the script pot starts flat then).  An exit triggered by the LAST closed bar is kept so it can be flagged."""
     open_e = None; sig = None
     for j in range(max(60, s.n - lookback), s.n):
         if open_e is not None:
-            if trail(s, open_e, s.o[open_e], j)["hit"]: open_e = None
+            if trail(s, open_e, s.o[open_e], j)["hit"] and j < s.n - 1: open_e = None
             continue
+        if start is not None and s.idx[j] < start: continue
         if j + 1 <= s.n - 1:
             g = find_line(s, j, "cross")
             if g: open_e = j + 1; sig = g
     return (open_e, sig) if open_e is not None else (None, None)
+
+
+# ---------------------------------------------------------------- running log
+LOG_COLS = ["RunTime", "Symbol", "TF", "LastBar", "Close", "ATR", "Fresh921", "Action", "SigLine", "SigTouches", "SuggestedStop",
+            "ModelEntryTime", "ModelEntryPx", "Trail", "CushionPct", "WatchLine", "WatchATR"]
+
+
+def record(label, tf, s, me):
+    """One row per symbol per run: what the script pot would do after the last closed bar (UTC times)."""
+    t = s.n - 1; px = s.c[t]; ae = s.atr[t]; u = lambda ts: ts.tz_convert("UTC").strftime("%Y-%m-%d %H:%M")
+    r = dict(RunTime=pd.Timestamp.now(tz="UTC").strftime("%Y-%m-%d %H:%M"), Symbol=label, TF=tf.upper(), LastBar=u(s.idx[t]),
+             Close=round(px, 4), ATR=round(ae, 4), Fresh921=int(s.fresh[t]), Action="NONE")
+    if me is not None:
+        tr = trail(s, me, s.o[me], t)
+        r.update(Action="EXIT" if tr["hit"] else "HOLD", ModelEntryTime=u(s.idx[me]), ModelEntryPx=round(s.o[me], 4), Trail=round(tr["level"], 4), CushionPct=round((px / tr["level"] - 1) * 100, 2))
+    else:
+        sig = find_line(s, t, "cross")
+        if sig: r.update(Action="ENTRY", SigLine=round(sig["L_t"], 4), SigTouches=sig["touches"], SuggestedStop=round(px - HARD * ae, 4))
+        else:
+            w = find_line(s, t, "watch")
+            if w: r.update(WatchLine=round(w["L_t"], 4), WatchATR=round((w["L_t"] - px) / ae, 2))
+    return r
+
+
+def append_log(path, recs):
+    """Append rows for bars not logged yet (key = Symbol, TF, LastBar), so re-running never duplicates.  Returns rows added."""
+    import csv
+    exists = os.path.exists(path) and os.path.getsize(path) > 0; seen = set()
+    if exists:
+        with open(path, newline="") as f:
+            for r in csv.DictReader(f): seen.add((r["Symbol"], r["TF"], r["LastBar"]))
+    new = [r for r in recs if (r["Symbol"], r["TF"], r["LastBar"]) not in seen]
+    if not new: return 0
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    with open(path, "a", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=LOG_COLS)
+        if not exists: w.writeheader()
+        w.writerows(new)
+    return len(new)
 
 
 # ---------------------------------------------------------------- output
@@ -154,7 +196,8 @@ def report(label, tf, s, crypto, pos):
         lines.append(f"    SUGGESTED STOP {stop:.2f} (entry - 1.5 ATR, from ref close {px:.2f}; ATR {ae:.2f}). Distance {dist * 100:.1f}%; risk on a $1,000 stake ${1000 * dist:.0f} ({1000 * dist / 5000 * 100:.2f}% of a $5k pot).")
         lines.append(f"    After the fill, recompute: fill price - 1.5 x {ae:.2f}.  Disaster-stop option (wider, for close-based exits): fill - 2 ATR = fill - {2 * ae:.2f}.")
         if SHOW_WICKS: lines.append("    draw it through these wicks: " + ", ".join(f"{tstr(s.idx[b], crypto, tf)[:16]} high {s.h[b]:.2f}" for b in sig["tb"]))
-        action.append(f"{label}: ENTRY SIGNAL{' (fresh 9/21)' if s.fresh[t] else ''}")
+        held = any(p.get("tag") == "MODEL" for p in pos)
+        action.append(f"{label}: ENTRY SIGNAL{' (fresh 9/21)' if s.fresh[t] else ''}" + (" - script pot already long, not taken" if held else ""))
     else:
         w = find_line(s, t, "watch")
         if w: lines.append(f"  watch: nearest falling line (>=3 touches) {w['L_t']:.2f} now / {w['L_next']:.2f} next bar, {(w['L_t'] - px) / ae:+.1f} ATR ({(w['L_t'] / px - 1) * 100:+.1f}%) above close; {w['touches']} touches")
@@ -186,6 +229,8 @@ def main():
     ap.add_argument("--symbols", default="IAU:4h,PPLT:4h,BTC-USD:1d"); ap.add_argument("--positions", default=None, help="optional: your trade log CSV (Symbol,TF,EntryTime,EntryPx[,ExitTime]); rows with no ExitTime count as open")
     ap.add_argument("--no-model", action="store_true", help="skip the model position")
     ap.add_argument("--wicks", action="store_true", help="also print the wick touches of each signal line so you can draw it")
+    ap.add_argument("--flat-from", default="2026-10-19", help="script pot starts flat on this date (symbol's own timezone); '' replays the last ~400 bars instead")
+    ap.add_argument("--log", default=None, help="append one row per symbol per new closed bar to this CSV (e.g. log/scan_log.csv)")
     ap.add_argument("--csv"); ap.add_argument("--label", default="TEST"); ap.add_argument("--tf", default="1d", choices=["1d", "4h"])
     a = ap.parse_args()
     global SHOW_WICKS; SHOW_WICKS = a.wicks
@@ -197,14 +242,17 @@ def main():
             ts = pd.Timestamp(r["EntryTime"]); ts = ts.tz_localize(ET) if ts.tzinfo is None else ts
             pos_all.append(dict(sym=str(r["Symbol"]).strip(), tf=str(r.get("TF", "")).strip().lower(), ts=ts, px=float(r["EntryPx"])))
     jobs = [(a.label, a.tf, None)] if a.csv else [(LABEL.get(x.split(":")[0], x.split(":")[0]), x.split(":")[1].lower(), x.split(":")[0]) for x in a.symbols.split(",")]
-    out, actions = [], []
+    out, actions, recs = [], [], []
     for label, tf, ysym in jobs:
         d, crypto = load_csv(a.csv) if a.csv else load_yahoo(ysym, tf)
         s = S(d); mine = [p for p in pos_all if p["sym"].upper() == label.upper()]
-        me, sg = (None, None) if a.no_model else model_position(s)
+        start = pd.Timestamp(a.flat_from).tz_localize(s.idx.tz) if a.flat_from else None
+        me, sg = (None, None) if a.no_model else model_position(s, start=start)
         if me is not None: mine = mine + [dict(ts=s.idx[me], px=s.o[me], e=me, tag="MODEL", sig=sg)]
         lines, act = report(label, tf, s, crypto, mine); out += lines + [""]; actions += act or [f"{label}: nothing"]
+        recs.append(record(label, tf, s, me))
     print("ACTIONS\n  " + "\n  ".join(actions) + "\n"); print("\n".join(out))
+    if a.log: print(f"(log: {append_log(a.log, recs)} new row(s) -> {a.log})")
     print(f"(run {pd.Timestamp.now(tz=ET).strftime('%Y-%m-%d %H:%M ET')}; closed bars only; rules as tested in line3_explore.py)")
 
 
