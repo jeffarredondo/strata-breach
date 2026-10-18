@@ -1,0 +1,4 @@
+# can install these all at once if you choose to 
+numpy
+pandas
+yfinance
