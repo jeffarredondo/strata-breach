@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Line>=3 breakout scanner + swing-low trail monitor.  Same logic as line3_explore.py (true ATR, N=3 pivots, tol 0.5, spacing 5, wick poke <=1 ATR).
 
-    python3 scan.py                         # IAU 4H, PPLT 4H, BTC-USD 1D, positions from positions.csv
+    python3 scan.py                         # IAU, PPLT, BTC-USD, all daily
     python3 scan.py --log log/scan_log.csv                # also append a row per symbol per new closed bar (re-runs never duplicate)
-    python3 scan.py --symbols IAU:4h,BTC-USD:1d --positions my.csv
+    python3 scan.py --symbols IAU:1d,BTC-USD:4h --positions my.csv
     python3 scan.py --csv btc.csv --label BTCUSD --tf 1d      # test on a local Date,Open,High,Low,Close file
 
 Only CLOSED bars are used.  Per symbol it prints:
@@ -13,7 +13,7 @@ Only CLOSED bars are used.  Per symbol it prints:
            state of whatever position the rules would be holding right now
   OPEN   - optional: --positions YOUR_TRADE_LOG.csv (Symbol,TF,EntryTime,EntryPx[,ExitTime]; rows with no ExitTime are open; naive times = New York)
            gives the same trail/hold/exit readout for your actual entry
-4H bars are built from Yahoo 1h bars (equities: 09:30-13:30 and 13:30-16:00 ET; crypto: 00/04/08.. UTC); check they line up with your chart.
+Optional 4H (e.g. BTC-USD:4h) bars are built from Yahoo 1h bars (equities: 09:30-13:30 and 13:30-16:00 ET; crypto: 00/04/08.. UTC); check they line up with your chart.
 """
 import argparse, os, sys
 import numpy as np, pandas as pd
@@ -226,7 +226,7 @@ def report(label, tf, s, crypto, pos):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--symbols", default="IAU:4h,PPLT:4h,BTC-USD:1d"); ap.add_argument("--positions", default=None, help="optional: your trade log CSV (Symbol,TF,EntryTime,EntryPx[,ExitTime]); rows with no ExitTime count as open")
+    ap.add_argument("--symbols", default="IAU:1d,PPLT:1d,BTC-USD:1d"); ap.add_argument("--positions", default=None, help="optional: your trade log CSV (Symbol,TF,EntryTime,EntryPx[,ExitTime]); rows with no ExitTime count as open")
     ap.add_argument("--no-model", action="store_true", help="skip the model position")
     ap.add_argument("--wicks", action="store_true", help="also print the wick touches of each signal line so you can draw it")
     ap.add_argument("--flat-from", default="2026-10-19", help="script pot starts flat on this date (symbol's own timezone); '' replays the last ~400 bars instead")
