@@ -1,6 +1,6 @@
 # strata-breach
 
-Long-only structural breakout system: enter when price closes above a falling resistance line with >=3 swing-high touches, exit when a close breaks the highest confirmed swing low since entry. Paper trading IAU, PPLT (4H) and BTC (1D) from 2026-10-19.
+Long-only structural breakout system: enter when price closes above a falling resistance line with >=3 swing-high touches, exit when a close breaks the highest confirmed swing low since entry. Paper trading IAU, PPLT and BTC (1D) from 2026-10-19.
 
 ```
 scan.py                 daily scanner: ENTRY / WATCH / MODEL position (HOLD or EXIT) per symbol, suggested 1.5 ATR stop
@@ -14,7 +14,7 @@ data/download.py        pulls daily OHLC from Yahoo into data/*.csv (not committ
 ## Use
 ```
 pip install yfinance pandas numpy #or pip install -r requirements.txt
-python3 scan.py                      # IAU 4H, PPLT 4H, BTC-USD 1D
+python3 scan.py                      # IAU 1D, PPLT 1D, BTC-USD 1D
 python3 scan.py --wicks              # also print the wicks each signal line goes through
 python3 scan.py --symbols IAU:4h,PPLT:4h,BTC-USD:1d,IAU:1d,PPLT:1d    # add daily shadows
 python3 scan.py --positions log/trades.csv   # readout for your own open trades (rows with no ExitTime)

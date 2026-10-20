@@ -22,6 +22,7 @@ N, SPACING, LOOKBACK, POKE, TOL, MINT, HARD, CAP = 3, 5, 150, 1.0, 0.5, 3, 1.5, 
 ET = "America/New_York"
 LABEL = {"BTC-USD": "BTCUSD"}
 SHOW_WICKS = False
+WARN = {}   # symbol -> short note when Yahoo's newest bar is missing/empty (shown next to that symbol's action)
 
 
 # ---------------------------------------------------------------- data
@@ -39,12 +40,28 @@ def bin_end(ts, tf, crypto):
     return ts.normalize() + (pd.Timedelta(hours=13, minutes=30) if m < 13 * 60 + 30 else pd.Timedelta(hours=16))
 
 
+def fill_from_hourly(tk, d, crypto, now):
+    """Yahoo sometimes skips or blanks the newest daily bar. Rebuild complete, closed days after d's last bar from hourly bars."""
+    try: hh = tk.history(period="10d", interval="1h", auto_adjust=False)[["Open", "High", "Low", "Close"]].dropna()
+    except Exception: return d, []
+    if hh.empty: return d, []
+    hh.index = hh.index.tz_convert("UTC") if crypto else hh.index.tz_convert(ET)
+    day = hh.index.normalize()
+    g = hh.groupby(day).agg({"Open": "first", "High": "max", "Low": "min", "Close": "last"}); g["cnt"] = hh.groupby(day).size()
+    g = g[(g.index > d.index[-1]) & (g["cnt"] >= (23 if crypto else 6))]
+    g = g[np.array([bin_end(x, "1d", crypto) <= now for x in g.index], bool)] if len(g) else g
+    if g.empty: return d, []
+    return pd.concat([d, g[["Open", "High", "Low", "Close"]]]), [x.date() for x in g.index]
+
+
 def load_yahoo(sym, tf):
     import yfinance as yf
     crypto = sym.endswith("-USD")
     tk = yf.Ticker(sym)
     d = tk.history(period="5y", interval="1d", auto_adjust=False) if tf == "1d" else tk.history(period="730d", interval="1h", auto_adjust=False)
-    d = d[["Open", "High", "Low", "Close"]].dropna()
+    d = d[["Open", "High", "Low", "Close"]]
+    bad = d[d.isna().any(axis=1)].index[-5:]
+    d = d.dropna()
     if d.empty: raise SystemExit(f"{sym}: no data from Yahoo")
     d.index = d.index.tz_convert("UTC") if crypto else d.index.tz_convert(ET)
     if tf == "4h":
@@ -57,8 +74,19 @@ def load_yahoo(sym, tf):
     elif not crypto:
         d.index = d.index.normalize()
     now = pd.Timestamp.now(tz="UTC")
-    closed = np.array([bin_end(t, tf, crypto) <= now for t in d.index])
-    return d[closed], crypto
+    d = d[np.array([bin_end(t, tf, crypto) <= now for t in d.index])]
+    if tf == "1d":
+        if crypto: exp = (now.normalize() - pd.Timedelta(days=1)).date()
+        else:
+            ne = now.tz_convert(ET); ed = ne.normalize() if ne.hour >= 16 else ne.normalize() - pd.Timedelta(days=1)
+            while ed.weekday() >= 5: ed -= pd.Timedelta(days=1)
+            exp = ed.date()
+        filled = []
+        if d.index[-1].date() < exp: d, filled = fill_from_hourly(tk, d, crypto, now)
+        last = d.index[-1].date()
+        if last < exp: WARN[sym] = f"Yahoo bar for {exp} {'is empty' if len(bad) and bad[-1].date() >= exp else 'not available'} yet, using {last}"
+        elif filled: WARN[sym] = f"Yahoo daily bar missing for {', '.join(str(x) for x in filled)}; built from hourly bars"
+    return d, crypto
 
 
 def load_csv(path):
@@ -249,7 +277,9 @@ def main():
         start = pd.Timestamp(a.flat_from).tz_localize(s.idx.tz) if a.flat_from else None
         me, sg = (None, None) if a.no_model else model_position(s, start=start)
         if me is not None: mine = mine + [dict(ts=s.idx[me], px=s.o[me], e=me, tag="MODEL", sig=sg)]
-        lines, act = report(label, tf, s, crypto, mine); out += lines + [""]; actions += act or [f"{label}: nothing"]
+        lines, act = report(label, tf, s, crypto, mine); out += lines + [""]; act = act or [f"{label}: nothing"]
+        if ysym in WARN: act = [f"{x}   (data: {WARN[ysym]})" for x in act]
+        actions += act
         recs.append(record(label, tf, s, me))
     print("ACTIONS\n  " + "\n  ".join(actions) + "\n"); print("\n".join(out))
     if a.log: print(f"(log: {append_log(a.log, recs)} new row(s) -> {a.log})")
