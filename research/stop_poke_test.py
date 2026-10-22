@@ -8,7 +8,7 @@ Needs Date,Open,High,Low,Close and pivot_line_breakouts.py in the same folder.""
 import sys, argparse, numpy as np, pandas as pd
 ap = argparse.ArgumentParser(); ap.add_argument("file"); ap.add_argument("--from", dest="frm", default="2015-06-01")
 ap.add_argument("--cost", type=float, default=4.0); ap.add_argument("--stake", type=float, default=0.2); ap.add_argument("--tol", type=float, default=0.5)
-ap.add_argument("--mint", type=int, default=3); ap.add_argument("--perms", type=int, default=5000); ap.add_argument("--seed", type=int, default=1)
+ap.add_argument("--mint", type=int, default=3); ap.add_argument("--dump", default=None, help="save the daily return series of the intraday-1.5-ATR variant (for combining symbols)"); ap.add_argument("--perms", type=int, default=5000); ap.add_argument("--seed", type=int, default=1)
 a = ap.parse_args(); rng = np.random.default_rng(a.seed); sys.argv = ["x", a.file]
 import pivot_line_breakouts as P
 P.CONF = False
@@ -18,12 +18,12 @@ ev = [x for x in P.find_events(a.tol, a.mint) if x["t"] + 1 >= S0 and x["t"] + 1
 PLOW = np.array([i for i in range(3, n - 3) if l[i] == l[i - 3:i + 4].min() and l[i] < l[i - 3:i].min()])
 YRS = (D[n - 1] - D[S0]).astype("timedelta64[D]").astype(int) / 365.25; nbars = n - S0; bpy = nbars / YRS
 
-def run(e, mult, wick):
+def run(e, mult, wick, trail=True):
     """-> (exit bar x, exit px, reason, path of daily returns from entry to exit incl. costs)"""
     ent = o[e]; ae = atr[e - 1]; stop = ent - mult * ae if mult else -np.inf; cand = PLOW[PLOW >= e]
     for j in range(e, min(n, e + CAP + 1)):
         if wick and l[j] <= stop: x, px, why = j, min(o[j], stop) if j > e else stop, "stop"; break
-        ok = cand[cand + 3 <= j - 1]; level = max(stop, l[ok].max() if len(ok) else -np.inf)
+        ok = cand[cand + 3 <= j - 1]; level = max(stop, l[ok].max() if (trail and len(ok)) else -np.inf)
         if c[j] <= level or j - e >= CAP or j == n - 1:
             why = "trail" if c[j] <= level else "cap/end"
             x, px = (j + 1, o[j + 1]) if j + 1 < n else (j, c[j]); break
@@ -41,12 +41,12 @@ print(f"{a.file}: {str(D[S0])[:10]}..{str(D[-1])[:10]}  signals {len(sig)}  cost
 print("1) INTRADAY STOP (swing-low trail, one position at a time, buy next open)")
 print(f"{'variant':26s} {'n':>3s} {'win%':>5s} {'mean%':>6s} {'stops':>5s} | @100%: {'CAGR':>6s} {'maxDD':>6s} | @{a.stake*100:.0f}%: {'CAGR':>6s} {'maxDD':>6s} | stopped trades: mean ret vs close-rule on same entry")
 base = {}
-for name, mult, wick in (("close-based 1.5 ATR (base)", 1.5, False), ("intraday 1.5 ATR", 1.5, True), ("intraday 2 ATR", 2.0, True), ("intraday 3 ATR", 3.0, True), ("no hard stop", 0, False)):
+for name, mult, wick, trl in (("close-based 1.5 ATR (base)", 1.5, False, True), ("intraday 1.5 ATR", 1.5, True, True), ("intraday 2 ATR", 2.0, True, True), ("intraday 3 ATR", 3.0, True, True), ("no hard stop", 0, False, True), ("NO TRAIL: 1.5 stop + 120b cap", 1.5, True, False), ("NO TRAIL, NO STOP: 120b hold", 0, False, False)):
     tr, last, s, rets = [], -1, np.zeros(n), []
     for t in sig:
         e = t + 1
         if e <= last: continue
-        x, px, why, r = run(e, mult, wick); last = x; tr.append((e, why)); s[e:e + len(r)] += r; rets.append(((1 + r).prod() - 1) * 100)
+        x, px, why, r = run(e, mult, wick, trl); last = x; tr.append((e, why)); s[e:e + len(r)] += r; rets.append(((1 + r).prod() - 1) * 100)
     if name.startswith("close-based"):
         for (e, why), rr in zip(tr, rets): base[e] = rr
     st = [(e, rr) for (e, why), rr in zip(tr, rets) if why == "stop"]
@@ -55,6 +55,7 @@ for name, mult, wick in (("close-based 1.5 ATR (base)", 1.5, False), ("intraday 
         # same-entry baseline return, computed per entry independently (trades can differ in what follows)
         bb = [((1 + run(e, 1.5, False)[3]).prod() - 1) * 100 for e, _ in st]
         cmp = f"{np.mean([rr for _, rr in st]):+.2f}% vs {np.mean(bb):+.2f}%"
+    if a.dump and name == "intraday 1.5 ATR": np.save(a.dump, np.c_[D.astype('datetime64[D]').astype(np.int64), s])
     s1, s2 = stats(s, 1.0), stats(s, a.stake)
     print(f"{name:26s} {len(tr):3d} {np.mean(np.array(rets)>0)*100:5.1f} {np.mean(rets):+6.2f} {len(st):5d} | {s1[0]:+11.1f} {s1[1]:6.1f} | {s2[0]:+10.1f} {s2[1]:6.1f} | {cmp}")
 

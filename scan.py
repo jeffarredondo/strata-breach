@@ -22,6 +22,7 @@ N, SPACING, LOOKBACK, POKE, TOL, MINT, HARD, CAP = 3, 5, 150, 1.0, 0.5, 3, 1.5, 
 ET = "America/New_York"
 LABEL = {"BTC-USD": "BTCUSD"}
 SHOW_WICKS = False
+POT, STAKE = 5000, 1667   # paper pot and dollars per trade (33%); see RULES.md
 WARN = {}   # symbol -> short note when Yahoo's newest bar is missing/empty (shown next to that symbol's action)
 
 
@@ -54,6 +55,20 @@ def fill_from_hourly(tk, d, crypto, now):
     return pd.concat([d, g[["Open", "High", "Low", "Close"]]]), [x.date() for x in g.index]
 
 
+def bridge_crypto(tk, d, part, exp):
+    """Yahoo can skip the day that just closed while already showing the next (partial) day, and its hourly feed can miss hours.
+    BTC trades nonstop, so the skipped day's close = the next bar's open (Yahoo chains daily bars that way). High/low come from whatever hourly bars exist."""
+    day = pd.Timestamp(exp).tz_localize("UTC")
+    if part.empty or d.index[-1].normalize() != day - pd.Timedelta(days=1) or part.index[0].normalize() != day + pd.Timedelta(days=1): return d, False
+    o, cl = float(d["Close"].iloc[-1]), float(part["Open"].iloc[0]); hi, lo = max(o, cl), min(o, cl)
+    try:
+        hh = tk.history(period="10d", interval="1h", auto_adjust=False)[["High", "Low"]].dropna(); hh.index = hh.index.tz_convert("UTC")
+        hh = hh[hh.index.normalize() == day]
+        if len(hh): hi, lo = max(hi, float(hh["High"].max())), min(lo, float(hh["Low"].min()))
+    except Exception: pass
+    return pd.concat([d, pd.DataFrame({"Open": [o], "High": [hi], "Low": [lo], "Close": [cl]}, index=[day])]), True
+
+
 def load_yahoo(sym, tf):
     import yfinance as yf
     crypto = sym.endswith("-USD")
@@ -74,7 +89,7 @@ def load_yahoo(sym, tf):
     elif not crypto:
         d.index = d.index.normalize()
     now = pd.Timestamp.now(tz="UTC")
-    d = d[np.array([bin_end(t, tf, crypto) <= now for t in d.index])]
+    keep = np.array([bin_end(t, tf, crypto) <= now for t in d.index]); part = d[~keep]; d = d[keep]
     if tf == "1d":
         if crypto: exp = (now.normalize() - pd.Timedelta(days=1)).date()
         else:
@@ -83,8 +98,11 @@ def load_yahoo(sym, tf):
             exp = ed.date()
         filled = []
         if d.index[-1].date() < exp: d, filled = fill_from_hourly(tk, d, crypto, now)
+        bridged = False
+        if crypto and d.index[-1].date() < exp: d, bridged = bridge_crypto(tk, d, part, exp)
         last = d.index[-1].date()
         if last < exp: WARN[sym] = f"Yahoo bar for {exp} {'is empty' if len(bad) and bad[-1].date() >= exp else 'not available'} yet, using {last}"
+        elif bridged: WARN[sym] = f"Yahoo daily bar missing for {exp}; close = next bar's open, high/low from hourly"
         elif filled: WARN[sym] = f"Yahoo daily bar missing for {', '.join(str(x) for x in filled)}; built from hourly bars"
     return d, crypto
 
@@ -221,7 +239,7 @@ def report(label, tf, s, crypto, pos):
         lines.append(f"  ENTRY SIGNAL: closed above falling line {sig['L_t']:.2f} ({sig['touches']} touches, anchored {tstr(s.idx[sig['anchor']], crypto, tf)[:16]}). Buy at next open.")
         stop = px - HARD * ae; dist = HARD * ae / px
         lines.append(f"    fresh 9/21 cross: {'YES' if s.fresh[t] else 'no'}")
-        lines.append(f"    SUGGESTED STOP {stop:.2f} (entry - 1.5 ATR, from ref close {px:.2f}; ATR {ae:.2f}). Distance {dist * 100:.1f}%; risk on a $1,000 stake ${1000 * dist:.0f} ({1000 * dist / 5000 * 100:.2f}% of a $5k pot).")
+        lines.append(f"    SUGGESTED STOP {stop:.2f} (entry - 1.5 ATR, from ref close {px:.2f}; ATR {ae:.2f}). Distance {dist * 100:.1f}%; risk on a ${STAKE:,.0f} stake ${STAKE * dist:.0f} ({STAKE * dist / POT * 100:.2f}% of a ${POT:,.0f} pot).")
         lines.append(f"    After the fill, recompute: fill price - 1.5 x {ae:.2f}.  Disaster-stop option (wider, for close-based exits): fill - 2 ATR = fill - {2 * ae:.2f}.")
         if SHOW_WICKS: lines.append("    draw it through these wicks: " + ", ".join(f"{tstr(s.idx[b], crypto, tf)[:16]} high {s.h[b]:.2f}" for b in sig["tb"]))
         held = any(p.get("tag") == "MODEL" for p in pos)
