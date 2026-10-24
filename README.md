@@ -1,4 +1,4 @@
-# line-breakout
+# strata-breach
 
 Long-only structural breakout system, daily bars, no leverage. Paper trading IAU, PPLT and IBIT (spot BTC ETF; BTC-USD until 2026-10-24) from 2026-10-19 for at least six months. Learning project, not advice.
 
