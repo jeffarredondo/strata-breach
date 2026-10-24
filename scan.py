@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Line>=3 breakout scanner + swing-low trail monitor.  Same logic as line3_explore.py (true ATR, N=3 pivots, tol 0.5, spacing 5, wick poke <=1 ATR).
 
-    python3 scan.py                         # IAU, PPLT, BTC-USD, all daily
+    python3 scan.py                         # IAU, PPLT, IBIT, all daily
     python3 scan.py --log log/scan_log.csv                # also append a row per symbol per new closed bar (re-runs never duplicate)
     python3 scan.py --symbols IAU:1d,BTC-USD:4h --positions my.csv
     python3 scan.py --csv btc.csv --label BTCUSD --tf 1d      # test on a local Date,Open,High,Low,Close file
@@ -18,7 +18,7 @@ Optional 4H (e.g. BTC-USD:4h) bars are built from Yahoo 1h bars (equities: 09:30
 import argparse, os, sys
 import numpy as np, pandas as pd
 
-N, SPACING, LOOKBACK, POKE, TOL, MINT, HARD, CAP = 3, 5, 150, 1.0, 0.5, 3, 1.5, 120
+N, SPACING, LOOKBACK, POKE, TOL, MINT, HARD = 3, 5, 150, 1.0, 0.5, 3, 1.5
 ET = "America/New_York"
 LABEL = {"BTC-USD": "BTCUSD"}
 SHOW_WICKS = False
@@ -158,6 +158,12 @@ def find_line(s, t, mode):
     return best[1] if best else None
 
 
+def pokes(s, g, t, W):
+    """Failed pokes in the W bars before signal bar t: the bar's high went above the falling line but it closed back under it (log field, not a filter)."""
+    i = np.arange(max(0, t - W), t); L = s.h[g["anchor"]] + g["slope"] * (i - g["anchor"])
+    return int(((s.h[i] > L) & (s.c[i] < L)).sum())
+
+
 # ---------------------------------------------------------------- positions
 def trail(s, e, ent, j):
     """swing-low trail state after closed bar j (identical to line3_explore.walk 'swing')."""
@@ -167,7 +173,7 @@ def trail(s, e, ent, j):
         k = ok[np.argmax(s.l[ok])]; sw = s.l[k]
     else: k, sw = None, -np.inf
     lvl = max(floor, sw)
-    return dict(level=lvl, floor=floor, swing=sw if k is not None else None, swing_bar=k, hit=s.c[j] <= lvl or (j - e) >= CAP)
+    return dict(level=lvl, floor=floor, swing=sw if k is not None else None, swing_bar=k, hit=s.c[j] <= lvl)
 
 
 def model_position(s, lookback=400, start=None):
@@ -213,7 +219,10 @@ def append_log(path, recs):
     exists = os.path.exists(path) and os.path.getsize(path) > 0; seen = set()
     if exists:
         with open(path, newline="") as f:
-            for r in csv.DictReader(f): seen.add((r["Symbol"], r["TF"], r["LastBar"]))
+            rd = csv.DictReader(f)
+            if not {"Symbol", "TF", "LastBar"} <= set(rd.fieldnames or []):
+                return f"NOT WRITTEN: {path} is not a scan log (no LastBar column). --log is the scan's own CSV, e.g. --log log/scan_log.csv; your trades file does not go here"
+            for r in rd: seen.add((r["Symbol"], r["TF"], r["LastBar"]))
     new = [r for r in recs if (r["Symbol"], r["TF"], r["LastBar"]) not in seen]
     if not new: return 0
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
@@ -239,6 +248,7 @@ def report(label, tf, s, crypto, pos):
         lines.append(f"  ENTRY SIGNAL: closed above falling line {sig['L_t']:.2f} ({sig['touches']} touches, anchored {tstr(s.idx[sig['anchor']], crypto, tf)[:16]}). Buy at next open.")
         stop = px - HARD * ae; dist = HARD * ae / px
         lines.append(f"    fresh 9/21 cross: {'YES' if s.fresh[t] else 'no'}")
+        lines.append(f"    failed pokes before the break: {pokes(s, sig, t, 10)} in the last 10 bars, {pokes(s, sig, t, 20)} in the last 20 (log field)")
         lines.append(f"    SUGGESTED STOP {stop:.2f} (entry - 1.5 ATR, from ref close {px:.2f}; ATR {ae:.2f}). Distance {dist * 100:.1f}%; risk on a ${STAKE:,.0f} stake ${STAKE * dist:.0f} ({STAKE * dist / POT * 100:.2f}% of a ${POT:,.0f} pot).")
         lines.append(f"    After the fill, recompute: fill price - 1.5 x {ae:.2f}.  Disaster-stop option (wider, for close-based exits): fill - 2 ATR = fill - {2 * ae:.2f}.")
         if SHOW_WICKS: lines.append("    draw it through these wicks: " + ", ".join(f"{tstr(s.idx[b], crypto, tf)[:16]} high {s.h[b]:.2f}" for b in sig["tb"]))
@@ -258,21 +268,21 @@ def report(label, tf, s, crypto, pos):
         if p.get("sig"):
             g = p["sig"]; ai = g["anchor"]
             if SHOW_WICKS: lines.append("    draw it through these wicks: " + ", ".join(f"{tstr(s.idx[b], crypto, tf)[:16]} high {s.h[b]:.2f}" for b in g["tb"]))
-            lines.append(f"    signal bar {tstr(s.idx[e - 1], crypto, tf)}: closed above falling line {g['L_t']:.2f} ({g['touches']} touches; line starts at the swing high {tstr(s.idx[ai], crypto, tf)} high {s.h[ai]:.2f}; slope {g['slope']:+.3f}/bar); fresh 9/21: {'yes' if s.fresh[e - 1] else 'no'}")
+            lines.append(f"    signal bar {tstr(s.idx[e - 1], crypto, tf)}: closed above falling line {g['L_t']:.2f} ({g['touches']} touches; line starts at the swing high {tstr(s.idx[ai], crypto, tf)} high {s.h[ai]:.2f}; slope {g['slope']:+.3f}/bar); fresh 9/21: {'yes' if s.fresh[e - 1] else 'no'}; failed pokes 10b/20b: {pokes(s, g, e - 1, 10)}/{pokes(s, g, e - 1, 20)}")
         j = t; r = trail(s, e, ent, j)
         why = "swing low" if r["swing"] is not None and r["swing"] >= r["floor"] else "1.5 ATR floor"
         sw = f"swing low {r['swing']:.2f} @ {tstr(s.idx[r['swing_bar']], crypto, tf)[:16]}" if r["swing"] is not None else "no swing low confirmed yet"
         call = "EXIT at next open" if r["hit"] else "HOLD"
-        lines.append(f"  {tag} @ {ent:.2f} ({tstr(ts, crypto, tf)}), bar {j - e + 1} of cap {CAP}, P&L {(px / ent - 1) * 100:+.2f}%")
+        lines.append(f"  {tag} @ {ent:.2f} ({tstr(ts, crypto, tf)}), bar {j - e + 1}, P&L {(px / ent - 1) * 100:+.2f}%")
         lines.append(f"    trail {r['level']:.2f} (binding: {why}; {sw}; floor {r['floor']:.2f})   close {px:.2f}   cushion {(px / r['level'] - 1) * 100:+.2f}%")
-        lines.append(f"    >>> {call}" + ("   (cap reached)" if (j - e) >= CAP else ""))
+        lines.append(f"    >>> {call}" + ("   (open > 30 bars: decide whether to keep it)" if (j - e + 1) > 30 and not r["hit"] else ""))
         action.append(f"{label}: {call}" + (" (model position)" if tag != "OPEN" else ""))
     return lines, action
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--symbols", default="IAU:1d,PPLT:1d,BTC-USD:1d"); ap.add_argument("--positions", default=None, help="optional: your trade log CSV (Symbol,TF,EntryTime,EntryPx[,ExitTime]); rows with no ExitTime count as open")
+    ap.add_argument("--symbols", default="IAU:1d,PPLT:1d,IBIT:1d"); ap.add_argument("--positions", default=None, help="optional: your trade log CSV (Symbol,TF,EntryTime,EntryPx[,ExitTime]); rows with no ExitTime count as open")
     ap.add_argument("--no-model", action="store_true", help="skip the model position")
     ap.add_argument("--wicks", action="store_true", help="also print the wick touches of each signal line so you can draw it")
     ap.add_argument("--flat-from", default="2026-10-19", help="script pot starts flat on this date (symbol's own timezone); '' replays the last ~400 bars instead")
@@ -300,7 +310,8 @@ def main():
         actions += act
         recs.append(record(label, tf, s, me))
     print("ACTIONS\n  " + "\n  ".join(actions) + "\n"); print("\n".join(out))
-    if a.log: print(f"(log: {append_log(a.log, recs)} new row(s) -> {a.log})")
+    if a.log:
+        k = append_log(a.log, recs); print(f"(log: {k})" if isinstance(k, str) else f"(log: {k} new row(s) -> {a.log})")
     print(f"(run {pd.Timestamp.now(tz=ET).strftime('%Y-%m-%d %H:%M ET')}; closed bars only; rules as tested in line3_explore.py)")
 
 
