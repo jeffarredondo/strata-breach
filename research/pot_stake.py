@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Combined pot at different stakes per trade: runs the plan (swing-low trail + intraday 1.5 ATR stop, 3-touch lines, daily) on each file via stop_poke_test.py,
+"""NOTE: this holds every position at the stake fraction of the pot EVERY DAY (daily rebalance), which trims runners, so it is the cautious version (about 4 points a year lower than the plan). The plan sizes each trade once at entry and never trims: use dollar_sim.py or trade_bootstrap.py for that.
+Combined pot at different stakes per trade: runs the plan (swing-low trail + intraday 1.5 ATR stop, 3-touch lines, daily) on each file via stop_poke_test.py,
 then adds the three symbols' daily returns at the same stake.  Also counts how often 1 / 2 / 3 positions are open at once.
     python3 research/pot_stake.py data/iau.csv data/pplt.csv data/btc.csv --from 2015-06-01 --recent 2024-11-01
 Needs stop_poke_test.py and pivot_line_breakouts.py in the same folder."""

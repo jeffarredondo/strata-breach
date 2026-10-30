@@ -81,22 +81,49 @@ IAU 2015-2026 (75 signals) agrees in direction, not significant: margin <= 0.10 
 ## Exit, size and distribution tests (2026-10-21..23; daily, 2015-2026, intraday 1.5 ATR stop + swing-low trail, 33% stake, 4 bps RT unless noted)
 `research/trade_dist.py`, `research/swing_n_test.py`, `research/stop_poke_test.py`.
 
-**Trade distribution** (all three over the same window, 2015-06..2026-10; one position at a time, return per trade before stake sizing):
+**Trade distribution, the plan's vehicle** (all three over the same window, 2018-09..2026-10, BTC on IBIT-hours bars; one position at a time, return per trade before stake sizing):
 
-| | BTC | PPLT | IAU |
+| | BTC (IBIT hours) | PPLT | IAU |
+|---|---|---|---|
+| Trades | 32 | 30 | 29 |
+| Ended at the stop | 47% | 47% | 55% |
+| Avg stopped loss | -6.2% | -3.4% | -2.0% |
+| Win rate | 44% | 37% | 41% |
+| Avg winner | +51.6% (median +17.5%) | +12.9% | +9.5% |
+| Median trade | -3.1% | -2.1% | -1.2% |
+| Best trade | +346% | +32% | +48% |
+| Top 3 trades' share of total return | 87% | 104% | 94% |
+| Top 5 | 109% | 141% | 117% |
+
+BTC on IBIT-hours bars, 32 trades by return per trade:
+```
+<= -5%     12  ############
+-5 to -3    4  ####
+-3 to -1    2  ##
+-1 to 0     0
+0 to 2      2  ##
+2 to 5      2  ##
+5 to 10     1  #
+10 to 20    2  ##
+20 to 50    4  ####
+> 50%       3  ###
+```
+18 of 32 trades lose money, 16 lose 3% or more, and 7 make 20% or more. In all three symbols the top 3 trades are about 90-100% of the total return, so the result rests on a handful of trends; with 30 trades per symbol, a different draw of 3 winners would move the pot a lot. The BTC stopped average is wide because 2018-2022 BTC had much larger ATRs; at today's ATR (about 2.6%) a 1.5 ATR stop is about -3.9%.
+
+**Longer window for reference** (2015-06..2026-10, BTC on 24/7 bars, the earlier backtests):
+
+| | BTC (24/7) | PPLT | IAU |
 |---|---|---|---|
 | Trades | 62 | 42 | 41 |
 | Ended at the stop | 39% | 50% | 54% |
-| Avg stopped loss | -6.0% (today's stop about -3.7%) | -3.0% | -1.9% |
+| Avg stopped loss | -6.0% | -3.0% | -1.9% |
 | Win rate | 50% | 36% | 37% |
 | Avg winner | +34.6% | +10.8% | +8.0% |
 | Median trade | +0.1% | -1.8% | -1.2% |
 | Best trade | +228% | +32% | +48% |
 | Top 3 trades' share of total return | 47% | ~100% | 103% (top 5: 129%) |
 
-(IAU on its 2005-18 training file only, for reference: 52 trades, 60% stopped, avg stop -2.2%, win 31%, avg winner +6.5%, median -1.5%, best +41%, top 3 over 100%. Same shape.)
-
-BTC, 62 trades by return per trade (2015-2026, plan rules):
+BTC (24/7), 62 trades by return per trade:
 ```
 <= -5%     16  ################
 -5 to -3   12  ############
@@ -109,7 +136,7 @@ BTC, 62 trades by return per trade (2015-2026, plan rules):
 20 to 50   11  ###########
 > 50%       4  ####
 ```
-Two clumps: 28 trades (45%) lose 3% or more, and 15 trades (24%) make 20% or more. The middle is thin, which is what a stop plus a trend trail produces. Half the trades lose money (31 of 62) and 8 more make under 5%; the right clump pays for everything.
+(IAU on its 2005-18 training file only: 52 trades, 60% stopped, avg stop -2.2%, win 31%, avg winner +6.5%, median -1.5%, best +41%, top 3 over 100%. Same shape.) The 24/7 sample has twice the trades and a less concentrated top 3 (47%); the 2018+ ETF-hours sample is the harder, more concentrated one, and the one the plan trades.
 
 Holds: stopped trades 7-9 bars, winners about 48 bars, all trades 24-30 bars. Expect about 40% of BTC trades to be small stopped losses; the winners carry it.
 
@@ -157,6 +184,72 @@ Whole pot (IAU + PPLT + BTC on IBIT-hours bars, one position per symbol, `resear
 | 20% | +14.0% | -14.0% | +16.1% / -7.0% |
 | 33% | +23.4% | -22.3% | +27.3% / -11.5% |
 
-Flat 25% of days; 1 open 43%, 2 open 25%, 3 open 6.5%. PPLT + IBIT alone at 33%: +20.1% / -21.8%, so IAU adds about 3 points. BTC is still most of the return. With the usual half haircut, about 11-12% a year.
+Flat 25% of days; 1 open 43%, 2 open 25%, 3 open 6.5%. Run `pot_stake.py` with `--from 2018-09-01` for the ETF-hours file: with the default 2015-06 start BTC has no data for three years and the CAGR is diluted (+16.1% at 33% over 2015-06..2026-10, same -22.3% drawdown); that number is a window artifact, not a result. On the 24/7 BTC file the 2015-2026 pot is +26.5% / -23.9% at 33%. PPLT + IBIT alone at 33%: +20.1% / -21.8%, so IAU adds about 3 points. BTC is still most of the return. With the usual half haircut, about 11-12% a year.
 
 Decision (RULES.md, 2026-10-24): the script pot trades IBIT instead of BTC-USD from 2026-10-26; same rules and stake. A Roth is the endgame vehicle (conversions fund it; trades are all short-term).
+
+
+## Dollar P&L at the plan's sizing, bootstrap, and the third-symbol test (2026-10-24)
+`research/dollar_sim.py`, `research/trade_bootstrap.py`. IAU + PPLT + IBIT-hours BTC, 2018-09..2026-10, 4 bps RT, $5,000 start, one position per symbol, marked to market daily.
+
+| | Fixed $1,667 per trade | 1/3 of the pot at each entry, never trimmed (the plan) |
+|---|---|---|
+| Ends at | $18,011 (+17.0%/yr) | $36,416 (+27.6%/yr) |
+| Max drawdown | -21.4% (-$1,961) | -23.6% (-$5,347) |
+| IBIT (BTC) / IAU / PPLT P&L | +$10,270 / +$1,319 / +$1,422 | +$20,433 / +$6,116 / +$4,867 |
+
+The plan sizes each trade at 1/3 of the pot's value at entry (capped at the cash on hand, no leverage) and never rebalances while held. That adds about 4 points a year over `pot_stake.py`'s daily rebalance to 1/3 (+27.6% vs +23.4%), because trimming sells the runners that carry the return. The cost is bigger single-day swings: worst day -13.9% on 2019-06-27, when the BTC runner (a $1,667 stake worth about $6,000 after a 250% run) lost 21.8% in a session. Planning number after a half haircut: about 13-14% a year.
+
+**Bootstrap** (resample each symbol's trades with replacement, 20,000 redraws; preview on PPLT + IBIT-hours BTC, 33% per trade): plain replay +24.5%/yr; 5th / 25th / median / 75th / 95th percentile of an 8-year stretch +6.4% / +15.1% / +23.2% / +33.1% / +51.1%; 94% of redraws at or above +7%. Remove the best k trades in every symbol: k=1 +12.0%, k=2 +5.5%, k=3 +2.4%. The result rests on a handful of trends. The interval covers trade-draw luck only, not selection of the rules.
+
+**Third-symbol test** (IAU + IBIT-hours BTC + one more, 1/3 at entry, ending value from $5,000): VGT $44,330 (+30.7%), SCHG $38,399, QQQ $37,056, PPLT $36,416 (+27.6%), VOO $32,458, IWM $32,330, TLT $28,995, none $29,335. Drawdowns -22% to -25% in all (BTC drives them). Differences among the top four are within noise (18-26 trades each) and VGT's 73% win rate is tech's 2019-2025 run. PPLT is gold's twin (daily correlation 0.61 with IAU vs 0.12-0.14 for the equity candidates), but the equity candidates are about 0.3 correlated with BTC; on the worst 5% IAU/BTC days PPLT averaged -1.6%, equities -0.9% to -1.2%, and only TLT held up (+0.1%) but the strategy loses money on TLT (-$1,112). Expense ratios: PPLT 0.60%, IAU 0.25%, QQQM 0.15%, VGT 0.09% (already in the ETF prices; a few hundredths of a point on the pot). Decision: keep PPLT for the first sample (no changes); a watch-only VGT or QQQM shadow symbol is an option later.
+
+Oil (USO, BNO, Brent and WTI futures) and energy stocks (XLE) were also run, +0.3% to +3.4% a year at 33% on their own, and oil fell on the selloff days too (average -1.1% to -1.5%, up on 36-40%). Not trading it.
+
+
+## Symbol screen in R, wider quiver, retest/bounce/dip side tests (2026-10-29)
+
+**Trades in R** (`research/symbol_screen.py`; same breakout signals and plan exit, one position at a time, 2018-09..2026-10, R = trade return / (1.5 ATR at entry / entry open); null = random entries with the same exit and count, independent single trades, 300 draws):
+
+| | n | /yr | Win | Mean R (5-95% bootstrap) | Median R | >=3R | >=5R | >=10R | Best R | Top-3 share | Skew | Null mean R (real pct) |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| IBIT | 32 | 3.9 | 44% | +4.62 (+0.59..+9.79) | -0.75 | 25% | 12% | 9% | +88 | 83% | +4.2 | +3.38 (74th) |
+| IAU | 29 | 3.6 | 41% | +2.16 (+0.18..+4.56) | -1.02 | 24% | 10% | 10% | +37 | 73% | +3.6 | +1.08 (90th) |
+| PPLT | 30 | 3.7 | 37% | +0.93 (-0.06..+1.94) | -0.75 | 20% | 10% | 3% | +14 | 62% | +2.2 | +0.37 (88th) |
+| VGT | 22 | 2.7 | 73% | +1.76 (+0.92..+2.65) | +1.56 | 27% | 18% | 0% | +6 | 39% | +0.4 | +0.45 (99th) |
+| SCHG | 20 | 2.5 | 65% | +1.56 (+0.61..+2.54) | +0.83 | 30% | 10% | 0% | +8 | 50% | +0.9 | +0.46 (96th) |
+| QQQ | 26 | 3.2 | 46% | +0.92 (+0.20..+1.70) | -0.21 | 23% | 12% | 0% | +6 | 48% | +1.0 | +0.53 (80th) |
+| VOO | 18 | 2.2 | 56% | +0.57 (-0.09..+1.32) | +0.08 | 11% | 0% | 0% | +5 | 56% | +0.7 | +0.35 (67th) |
+| VTI | 21 | 2.6 | 52% | +1.01 (+0.21..+1.82) | +0.03 | 24% | 0% | 0% | +5 | 46% | +0.6 | +0.25 (95th) |
+| IWM | 25 | 3.1 | 52% | +0.31 (-0.19..+0.85) | +0.61 | 8% | 0% | 0% | +5 | 45% | +0.6 | +0.07 (75th) |
+| TLT | 47 | 5.8 | 30% | -0.05 (-0.52..+0.52) | -1.02 | 9% | 4% | 2% | +12 | 69% | +3.6 | -0.17 (70th) |
+| USO | 35 | 4.3 | 31% | +0.90 (-0.12..+2.14) | -1.01 | 14% | 9% | 3% | +22 | 67% | +3.5 | +0.58 (74th) |
+| BNO | 30 | 3.7 | 40% | +1.37 (+0.09..+3.02) | -1.01 | 20% | 10% | 3% | +23 | 65% | +3.2 | +0.73 (87th) |
+| XLE | 35 | 4.3 | 37% | +0.30 (-0.27..+0.90) | -1.01 | 9% | 3% | 0% | +8 | 54% | +1.9 | +0.00 (79th) |
+
+- Two shapes. IBIT, IAU, PPLT and the oil names: median trade about -1R, skew +2 to +4, 10R+ trades exist; the mean sits in the right tail. VGT, SCHG, VTI, VOO, IWM: win 52-73%, median at or above 0, best trade 4.5-8R, skew under 1.
+- The null here (independent random entries) includes the symbol's drift, so IBIT's real mean (+4.62R) is at the 74th percentile of a +3.38R null. It is a different null from the 98th-percentile figure earlier in this file (`pivot_line_breakouts.py`: same-count random entries in a one-position series), so the two percentiles are not comparable.
+
+**Wider quiver at 1/N** (`research/dollar_sim.py`, 2018-09..2026-10, $5,000, stake = 1/N of the pot at entry, never trimmed, idle cash at 0%; the 13 are IAU, PPLT, IBIT, QQQ, VOO, VTI, VGT, SCHG, IWM, TLT, USO, BNO, XLE):
+
+| Pot | Ends | CAGR | maxDD | ~Trades/yr |
+|---|---|---|---|---|
+| IAU + PPLT + IBIT, 33% (the plan) | $36,416 | +27.6% | -23.6% | |
+| All 13, 1/13 each | $15,370 | +14.8% | -11.2% | 46 |
+| 10 without oil, 1/10 | $14,935 | +14.4% | -12.3% | 33 |
+| 12 without BTC, 1/12 | $10,732 | +9.8% | -7.5% | 42 |
+| 12 without BTC, 1/6 / 1/4 | $16,461 / $17,102 | +15.8% / +16.3% | -13.6% / -14.6% | |
+| IBIT alone, 33% / 50% / 100% of its pool | $22,793 / $39,584 / $130,751 | +20.5% / +28.9% / +49.3% | -26.2% / -33.2% / -46.9% | |
+| IBIT + IAU + PPLT + VGT, 25% (4 slots) | $33,598 | +26.4% | -18.2% | |
+| IBIT + IAU + PPLT + VGT, 33% (3 slots, first signal takes a free slot, order IBIT, IAU, PPLT, VGT) | $52,876 | +33.6% | -22.0% | |
+| IAU + PPLT + VGT (no BTC), 33% / 25% | $12,795 / $10,263 | +12.2% / +9.2% | -14.0% / -11.4% | |
+
+2022 P&L ($5,000 pot): plan -$3,429; all 13 -$534; 12 without BTC -$168 (1/12), -$34 (1/6), -$239 (1/4).
+
+**Long history, 8 ETFs (QQQ, IWM, XLE, VTI, TLT, VGT, IAU, USO), 25% stake, 2000-01..2026-10:** +4.2% a year, maxDD -26.7% (12.5% stake: +3.3%, -17.0%). 2000-2018 total P&L +$108; 2019-2026 +$10,150. Bear years (stake 25%): 2000 -$598 (QQQ -36%), 2001 -$182 (-33%), 2002 -$394 (-37%), 2008 -$206 (-42%). Fewer symbols were listed in the early years.
+
+**Entry-timing and other-strategy tests (all daily; tested, not adopted, scripts not kept):**
+- Break-and-retest entry (wait up to K bars for a bar within 0.25-1 ATR of the line that closes above it, buy the next open; 189 signals, 2018-09+): a retest happens on 44-70% of signals; entry price vs immediate is about +0.1 ATR; stop rate on retest entries 53-63%; paired retest-minus-immediate mean -0.8% to -2.2% per trade (median about 0). Signals that never retest, bought immediately, average 2.5 to 10.6 pts per trade more (stratified permutation p 0.34 / 0.11 / 0.03 for bands 0.25 / 0.5 / 1.0 ATR; not corrected for the 9 variants).
+- Support-bounce long (buy the confirmed 3rd touch of a rising support line, plan exit; 2015-06+): QQQ, VOO, VGT, SCHG, IWM, PPLT mean per trade +0.9% to -0.6%, below random entries with the same exit (5th-29th pct); TLT even (79th); IAU +1.8% (79th); BTC +32.7% from one +428% trade (94th), pot +5.6% a year.
+- RSI(2) pullback in an uptrend (close > SMA200, RSI(2) < 10, buy next open, sell on the first close above SMA5 or after 10 bars, 2015-06+): VOO 99 trades, 72% win, +0.31% per trade, in market 15% of days, +2.6% a year, 98th pct of random uptrend days; QQQ 80th, VGT 91st, SCHG 96th, IWM 93rd; IAU 82nd (2005-15: 87th); PPLT 30th. VOO 2015-20 57th pct, 2021+ 99th. A 1.5 ATR stop lowers it.
+- Daily return correlation 2018-09+: IAU-PPLT 0.61, IAU-IBIT 0.14, PPLT-IBIT 0.19.

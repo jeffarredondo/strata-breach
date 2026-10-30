@@ -275,7 +275,7 @@ def report(label, tf, s, crypto, pos):
         call = "EXIT at next open" if r["hit"] else "HOLD"
         lines.append(f"  {tag} @ {ent:.2f} ({tstr(ts, crypto, tf)}), bar {j - e + 1}, P&L {(px / ent - 1) * 100:+.2f}%")
         lines.append(f"    trail {r['level']:.2f} (binding: {why}; {sw}; floor {r['floor']:.2f})   close {px:.2f}   cushion {(px / r['level'] - 1) * 100:+.2f}%")
-        lines.append(f"    >>> {call}" + ("   (open > 30 bars: decide whether to keep it)" if (j - e + 1) > 30 and not r["hit"] else ""))
+        lines.append(f"    >>> {call}" + ("   (open > 30 bars; winners usually run 45+: exit only on the trail or stop)" if (j - e + 1) > 30 and not r["hit"] else ""))
         action.append(f"{label}: {call}" + (" (model position)" if tag != "OPEN" else ""))
     return lines, action
 

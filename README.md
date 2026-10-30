@@ -23,11 +23,11 @@ Swing-low trail + intraday 1.5 ATR stop, 33% stake, 4 bps round trip (details an
 
 | | CAGR | max DD |
 |---|---|---|
-| Pot (IAU + PPLT + BTC on IBIT-hours bars), 2018-09..2026-10 | +23.4% | -22.3% |
-| Same, since 2024-11 | +27.3% | -11.5% |
+| Pot at the plan's sizing (1/3 of the pot per trade, never trimmed), IAU + PPLT + IBIT-hours BTC, 2018-09..2026-10, $5,000 start | +27.6% (ends $36,416) | -23.6% |
+| Same with the stake rebalanced to 1/3 every day (more cautious) | +23.4% | -22.3% |
 | BTC alone, IBIT hours / 24-7 bars / spot at 150 bps | +16.1% / +14.6% / +11.7% | -17.4% / -18.4% / -21.3% |
 
-BTC is most of the return; IAU and PPLT smooth it. Take about half of these as the realistic expectation (11-12% a year for the pot). 24/7 BTC over 2015-2026 at 33%: +21.2%.
+BTC is most of the return; IAU and PPLT smooth it. Take about half of these as the realistic expectation (about 13-14% a year for the pot at the plan's sizing). 24/7 BTC over 2015-2026 at 33%: +21.2%.
 
 ## Layout
 ```
