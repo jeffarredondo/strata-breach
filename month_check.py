@@ -158,7 +158,7 @@ def main():
     if a.trades: print("\n2. ADHERENCE vs " + a.trades); adherence(S, trades, res, a.trades, a.pot)
     else: print("\n2. ADHERENCE: pass --trades YOUR_EXPORT.csv to compare your fills with the model")
     mf = pd.Timestamp(a.monthly_from); m = monthly_pot(D, mf, now); myrs = max((D["IAU"].index[-1] - mf).days, 0) / 365.25; mret = (m["eq"] / POT0 - 1) * 100
-    print(f"\n3. MONTHLY POT, flat from {a.monthly_from}, ${POT0:,.0f}, 1/{len(PRIORITY)} each")
+    print(f"\n3. MONTHLY POT, flat from {a.monthly_from}, ${POT0:,.0f}, 1/{len(PRIORITY)} of the pot at entry, never rebalanced")
     print(f"  value ${m['eq']:,.0f} ({mret:+.1f}%), max drawdown {dd(m['curve']) * 100:.1f}%, holding {', '.join(m['pos']) or 'none'}" + (f"; at next open: {', '.join(m['pend'])}" if m["pend"] else ""))
     print(f"  metrics (perfect adherence), closed round trips: {metrics(m['done'])}")
     show_cone("monthly pot", myrs, mret, cone_monthly, int(round(myrs * 12)))

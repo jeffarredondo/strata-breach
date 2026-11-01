@@ -85,7 +85,7 @@ python3 research/build_etf_hours.py Bitstamp_BTCUSD_1h.csv data/ibit.csv   # wri
 `python3 month_check.py [--trades your_export.csv --pot script]`, run at month-end after the scan and `monthly_trend.py`. Read-only.
 - It replays both pots as if every signal were taken (daily pot from `--flat-from`, default 2026-10-19; monthly pot from `--monthly-from`, default 2026-10-31) and prints value, drawdown, closed and open trades, pending entries and exits, and win rate / average win / average loss / payoff / profit factor, cumulative since the start. The daily pot's backtest figures are printed beside its own.
 - `--trades` takes your trade sheet exported as CSV (needs Symbol, EntryTime, EntryPx, ExitTime, ExitPx; a Pot column is optional, filter it with `--pot`). It prints the same metrics for your closed trades next to the model's, entries taken and missed, and fill slippage vs the model's next open in bps.
-- Each pot's return is placed in a cone of bootstrap paths drawn from `research/backtest_trades.csv` and `research/backtest_monthly.csv`. Those two files are snapshots of the backtest (2018-09 to 2026-10) and are not updated; a new baseline gets a new file name and date.
+- Each pot's return is placed in a cone of bootstrap paths drawn from `research/backtest_trades.csv` and `research/backtest_monthly.csv`. Those two files are snapshots of the backtest (2018-09 to 2026-10) and are not updated; a new baseline gets a new file name and date. (`backtest_monthly.csv` was regenerated on 2026-11-01, before any paper results, to match the never-rebalanced monthly pot.)
 - The cone starts after about 3 months. Model fills are the next open at 2 bps per side, and the scan's trail is close-based, so intraday stop fills are not modeled.
 
 ## Status

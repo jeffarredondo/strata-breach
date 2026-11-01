@@ -2,7 +2,7 @@
 """Monthly trend rule, run in parallel with scan.py (separate paper pot, not part of RULES.md).
 
 RULE: at each month-end close, a symbol is ON if its close is above the average of its last 10 month-end closes, otherwise OFF.
-      A change takes effect at the next open (buy or sell).  ON symbols are held at equal weight (1/N of the pot each, no leverage); OFF symbols are cash.
+      A change takes effect at the next open (buy or sell).  Each entry is sized at 1/N of the pot's value on the entry date and held until that symbol's own exit (no trimming, no rebalancing, no leverage); OFF symbols are cash.
 
     python3 monthly_trend.py                          # IAU, PPLT, IBIT, VGT, BNO, as of the last completed month-end
     python3 monthly_trend.py --log log/monthly_log.csv    # append one row per symbol per month-end (re-runs never duplicate)

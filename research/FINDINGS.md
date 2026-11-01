@@ -304,3 +304,19 @@ Long-history difference +0.53R, permutation p = 0.005, positive on all 8 symbols
 **Features of failed trades** (13 signal-bar features: touches, line length, slope, entry gap, breakout bar size, close and open above the line, ATR % of price, trend vs SMA50, 20-day momentum, distance from 252-day high, vol expansion, close position in bar; rank-normalised per symbol; discovery QQQ XLE TLT, 315 trades; validated on IWM VTI VGT USO IAU, 358 trades, and on the 2018-2026 five-symbol set): nothing predicts a stop-out (rate 49-51% in each sample). One feature, ATR % of price, relates to R (Spearman +0.15 discovery p 0.009, +0.17 held-out p 0.001, +0.11 five-symbol p 0.19), not to the stop-out rate. A first-pass hit on "distance above the line" was a look-ahead (it used the next day's open) and disappears when computed at the entry open.
 
 **Tested, not adopted** (daily; scripts not kept): sweep-and-engulf long (a bar undercuts the prior 20-bar low and closes back above it, bullish engulfing within 2 bars, 1.5 ATR stop, swing-low trail): 5 symbols 2018-2026 n=32, win 22%, mean +0.16R, 21st percentile of random entries with the same exit; 8 ETFs 2000-2026 n=277, win 35%, mean +0.33R, PF 1.54, 87th percentile (random +0.17R).
+
+**Update 2026-11-01: monthly pot held without rebalancing.** The monthly-rule rows above reset every ON symbol to a constant weight each day. The paper pot sizes each entry at 1/N of the pot and never trims, which gives different results on the same signals (5 symbols, 2018-09..2026-10, states through the September month-end):
+
+| Monthly rule, 5 symbols | CAGR | maxDD | Worst day | Rebalance orders |
+|---|---|---|---|---|
+| 20% at entry, held, never trimmed | +25.1% | -30.3% | -9.1% | 0 |
+| constant 20% (reset daily; table above) | +20.4% | -14.2% | -6.1% | |
+| reset to 20% at each month-end open | +20.4% | -16.7% | | 286 |
+| 33% at entry, ignoring collisions (avg 116% invested, max 186%) | +37.4% | -37.1% | -12.6% | 0 |
+| 33% at entry, cash-capped (3 fill, priority IAU PPLT IBIT VGT BNO) | +30.4% | -38.9% | -9.8% | 0 |
+
+Four or more symbols are ON on 54% of days. 8 ETFs at 12.5% at entry, never trimmed: 2018-09..2026-10 +10.9% / -14.4%; 2000..2026-10 +6.7% / -17.0%. Two $5,000 pots, A (daily breakout, 33%) + B (monthly, 20% at entry, never trimmed): $93,379, +31.6% a year, maxDD -22.9%, worst day -11.5%, daily correlation 0.62; P&L by year 2018 -$484, 2019 +$3,896, 2020 +$9,108, 2021 +$17,716, 2022 -$4,799, 2023 +$8,110, 2024 +$13,555, 2025 +$21,895, 2026 +$14,380.
+
+Per round trip, 5 symbols 2018-09+, monthly rule vs daily breakout: trips 37 (4.5 a year) vs 143 (17.6); win 38% vs 45%; average win / loss +88% / -6.0% vs +21.4% / -3.7%; profit factor 9.0 vs 4.8; mean +29.7% vs +7.7%; median -3.0% vs -1.2%; top-3 trades' share of wins 68% vs 40%; best +432% vs +346%. Monthly rule on the 8 ETFs since 2000: 171 trips, win 42%, average win / loss +26% / -5.8%, PF 3.3, mean +7.7%, median -1.8%, top-3 share 17%.
+
+**Early exits added to the monthly rule** (sell at the next open, re-enter only at the next month-end signal; constant-weight basis, CAGR / maxDD): daily close below the 10-month level, 5 symbols +16.9% / -16.0% (baseline +20.4% / -14.2%), 8 ETFs +5.2% / -12.6% (baseline +6.2% / -13.8%); 15% trailing stop +15.3% / -17.7% and +5.4% / -13.5%; 20% trailing stop +20.1% / -14.8% and +6.1% / -13.9%. Short round trips (two months or less, within +-3%) are 8% of trips.
