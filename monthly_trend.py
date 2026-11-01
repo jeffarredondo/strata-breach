@@ -40,15 +40,21 @@ def month_ends(c, now):
     return me
 
 
-def replay(d, me, sma, flat_from):
+def events(d, me, sma, flat_from):
     """Model pot, flat on flat_from: the first month-end on/before flat_from sets the starting state; after that every flip trades.
-    Returns (ON now, status text, entry bar date or None)."""
-    on = (me > sma) & sma.notna(); dates = list(d.index); ev = []          # (kind, bar index) ; bar = first bar after the month-end and on/after flat_from
+    Returns [(kind, bar index or None)] in order; kind is ENTER or EXIT, the bar is the first one after the month-end and on/after flat_from (None = not traded yet)."""
+    on = (me > sma) & sma.notna(); dates = list(d.index); ev = []
     k0 = max([i for i, t in enumerate(me.index) if t <= flat_from] or [0]); prev = False
     for i in range(k0, len(me)):
         cur = bool(on.iloc[i])
         if cur != prev:
             j = next((j for j, t in enumerate(dates) if t > me.index[i] and t >= flat_from), None); ev.append(("ENTER" if cur else "EXIT", j)); prev = cur
+    return ev
+
+
+def replay(d, me, sma, flat_from):
+    """Returns (ON now, status text, entry bar date or None)."""
+    on = (me > sma) & sma.notna(); dates = list(d.index); ev = events(d, me, sma, flat_from)
     if not ev: return bool(on.iloc[-1]), "cash", None
     kind, j = ev[-1]
     if j is None: return bool(on.iloc[-1]), f"{kind} at next open", None

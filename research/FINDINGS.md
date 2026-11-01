@@ -1,5 +1,4 @@
-# Findings, condensed (updated 2026-10-24)
-Full running log with every side test: project doc `pivot_line_findings_2026-10-16.md` (archive). This is the part that matters.
+# Findings
 
 ## The system
 Long only. Entry: a close above a falling resistance line (swing highs N=3, >=3 touches, wicks count, no close above it since the first anchor), buy next open. Exit: close at or below the highest confirmed swing low since entry (floor: a 1.5 ATR stop-market under the entry, set once), sell the next open. No max hold. One position per symbol, 33% of the pot per trade (was 20%), max 3 open. Vehicle: IAU, PPLT, IBIT (spot BTC ETF) on weekday daily bars.
@@ -253,3 +252,55 @@ Oil (USO, BNO, Brent and WTI futures) and energy stocks (XLE) were also run, +0.
 - Support-bounce long (buy the confirmed 3rd touch of a rising support line, plan exit; 2015-06+): QQQ, VOO, VGT, SCHG, IWM, PPLT mean per trade +0.9% to -0.6%, below random entries with the same exit (5th-29th pct); TLT even (79th); IAU +1.8% (79th); BTC +32.7% from one +428% trade (94th), pot +5.6% a year.
 - RSI(2) pullback in an uptrend (close > SMA200, RSI(2) < 10, buy next open, sell on the first close above SMA5 or after 10 bars, 2015-06+): VOO 99 trades, 72% win, +0.31% per trade, in market 15% of days, +2.6% a year, 98th pct of random uptrend days; QQQ 80th, VGT 91st, SCHG 96th, IWM 93rd; IAU 82nd (2005-15: 87th); PPLT 30th. VOO 2015-20 57th pct, 2021+ 99th. A 1.5 ATR stop lowers it.
 - Daily return correlation 2018-09+: IAU-PPLT 0.61, IAU-IBIT 0.14, PPLT-IBIT 0.19.
+
+## Monthly trend rule vs the daily breakout, two-pot blend, side tests (2026-11-01)
+
+**Monthly rule** (`monthly_trend.py`): at each month-end close a symbol is ON if its close is above the mean of its last 10 month-end closes, else OFF; changes trade at the next open; ON symbols held at equal weight (1/N of the pot each, no leverage, no stop), OFF = cash at 0%; 2 bps per side. One spec, run once, nothing tuned. Daily breakout figures below are `dollar_sim`-style (stake = same weight, sized at entry, never trimmed, 4 bps RT, cash-capped). Same weights for both within each row.
+
+| Sample | Weight each | Monthly rule CAGR / maxDD | Daily breakout CAGR / maxDD | Monthly state changes per year (round trips) |
+|---|---|---|---|---|
+| IBIT IAU PPLT, 2018-09..2026-10 | 33% | +22.3% / -25.4% | +27.6% / -23.6% | 2.9 |
+| + VGT | 25% | +21.6% / -18.7% | +26.4% / -18.2% | 3.5 |
+| + BNO (5 symbols) | 20% | +20.4% / -14.2% | +25.0% / -17.6% | 4.9 |
+| 8 ETFs (QQQ IWM VTI XLE TLT VGT USO IAU), 2018-09..2026-10 | 12.5% | +9.7% / -11.0% | not run | 7.7 |
+| 8 ETFs, 2000-01..2018-08 | 12.5% | +4.7% / -13.8% (+134% total) | +0.9% / -17.0% (+19% total) | |
+| IAU VGT PPLT BNO (IBIT n/a), 2004-01..2018-08 | 25% | +2.3% / -22.8% | +1.2% / -17.3% | |
+| 8 ETFs, 2000-01..2026-10 | 12.5% | +6.2% / -13.8% | +2.4% / -16.8% | 6.5 |
+
+The 8-ETF long-history daily figure here (+2.4% at 12.5%) is from this run's simulation and differs slightly from the +3.3% in the long-history paragraph above, which came from an earlier run.
+
+**Two $5,000 pots over 2018-09..2026-10** (A: daily breakout, 33%, 5 symbols; B: monthly rule, 1/5 each):
+
+| | Ends | P&L | CAGR | maxDD | Worst day |
+|---|---|---|---|---|---|
+| A | $62,417 | +$57,417 | +36.4% | -24.5% | -13.4% |
+| B | $22,662 | +$17,662 | +20.4% | -14.2% | -6.1% |
+| A + B ($10,000) | $85,079 | +$75,079 | +30.1% | -20.5% | -10.0% |
+
+Daily-return correlation A vs B 0.59. Combined drawdown peak 2021-11, trough 2023-03. 2022 P&L: A -$5,187, B +$264, combined -$4,923. P&L by symbol (A / B / combined): IBIT +$26.3k / +$7.2k / +$33.5k, VGT +$12.0k / +$3.0k / +$14.9k, IAU +$9.9k / +$2.2k / +$12.1k, BNO +$2.9k / +$4.4k / +$7.3k, PPLT +$6.3k / +$0.9k / +$7.2k. IBIT + IAU = 61% of combined P&L.
+
+**Stake sweep and edge shrinkage** (5 symbols, 143 signals, `dollar_sim` mechanics, cash-capped):
+
+| Stake | CAGR | maxDD | ln-growth/yr | Worst day |
+|---|---|---|---|---|
+| 20% | +25.0% | -17.6% | 0.247 | -10.1% |
+| 25% | +29.5% | -20.8% | 0.287 | -11.5% |
+| 33% | +36.3% | -24.5% | 0.343 | -13.4% |
+| 50% | +49.5% | -30.1% | 0.446 | -16.5% |
+| 60% | +49.7% | -29.9% | 0.447 | -18.0% |
+| 100% | +44.9% | -38.3% | 0.411 | -21.8% |
+
+Log growth peaks near 50-60% (cash-capped: above 33% the pot holds fewer, larger positions). With winning trades halved in size (losers unchanged): 33% +10.9% / -25.2%, 50% +16.6% / -30.6%; with winners at 30%: 33% +2.1% / -26.4%. Max drawdown moves little with stake or edge. Bootstrap (iid trades, ~18 a year, 33%): P(end below start) 6.3% at 1 year, 1.1% at 2, 0.3% at 3; the stake barely changes it between 25% and 50%.
+
+**After a failed breakout** (previous trade on the same symbol ended in a stop-out vs a trail exit; R at 1.5 ATR; each trade tagged by the previous trade's exit type):
+
+| Sample | After stop-out: n, mean R, win | After trail exit: n, mean R, win |
+|---|---|---|
+| 8 ETFs 2000-2026 (696 trades) | 351, +0.72, 40% | 337, +0.19, 34% |
+| 5 symbols 2018-2026 (143 trades) | 68, +2.09, 44% | 70, +2.57, 49% |
+
+Long-history difference +0.53R, permutation p = 0.005, positive on all 8 symbols (IAU +1.33, USO +0.81, QQQ +0.75, IWM +0.50, VTI +0.44, XLE +0.29, TLT +0.24, VGT +0.13). Not seen in the 2018-2026 set. One cell of many splits; not used in the rules, no log column added.
+
+**Features of failed trades** (13 signal-bar features: touches, line length, slope, entry gap, breakout bar size, close and open above the line, ATR % of price, trend vs SMA50, 20-day momentum, distance from 252-day high, vol expansion, close position in bar; rank-normalised per symbol; discovery QQQ XLE TLT, 315 trades; validated on IWM VTI VGT USO IAU, 358 trades, and on the 2018-2026 five-symbol set): nothing predicts a stop-out (rate 49-51% in each sample). One feature, ATR % of price, relates to R (Spearman +0.15 discovery p 0.009, +0.17 held-out p 0.001, +0.11 five-symbol p 0.19), not to the stop-out rate. A first-pass hit on "distance above the line" was a look-ahead (it used the next day's open) and disappears when computed at the entry open.
+
+**Tested, not adopted** (daily; scripts not kept): sweep-and-engulf long (a bar undercuts the prior 20-bar low and closes back above it, bullish engulfing within 2 bars, 1.5 ATR stop, swing-low trail): 5 symbols 2018-2026 n=32, win 22%, mean +0.16R, 21st percentile of random entries with the same exit; 8 ETFs 2000-2026 n=277, win 35%, mean +0.33R, PF 1.54, 87th percentile (random +0.17R).
