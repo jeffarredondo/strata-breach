@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Line>=3 breakout scanner + swing-low trail monitor.  Same logic as line3_explore.py (true ATR, N=3 pivots, tol 0.5, spacing 5, wick poke <=1 ATR).
 
-    python3 scan.py                         # IAU, PPLT, IBIT, VGT, all daily
+    python3 scan.py                         # IAU, PPLT, IBIT, VGT, BNO, all daily
     python3 scan.py --log log/scan_log.csv                # also append a row per symbol per new closed bar (re-runs never duplicate)
     python3 scan.py --symbols IAU:1d,BTC-USD:4h --positions my.csv
     python3 scan.py --csv btc.csv --label BTCUSD --tf 1d      # test on a local Date,Open,High,Low,Close file
@@ -282,7 +282,7 @@ def report(label, tf, s, crypto, pos):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--symbols", default="IAU:1d,PPLT:1d,IBIT:1d,VGT:1d"); ap.add_argument("--positions", default=None, help="optional: your trade log CSV (Symbol,TF,EntryTime,EntryPx[,ExitTime]); rows with no ExitTime count as open")
+    ap.add_argument("--symbols", default="IAU:1d,PPLT:1d,IBIT:1d,VGT:1d,BNO:1d"); ap.add_argument("--positions", default=None, help="optional: your trade log CSV (Symbol,TF,EntryTime,EntryPx[,ExitTime]); rows with no ExitTime count as open")
     ap.add_argument("--no-model", action="store_true", help="skip the model position")
     ap.add_argument("--wicks", action="store_true", help="also print the wick touches of each signal line so you can draw it")
     ap.add_argument("--flat-from", default="2026-10-19", help="script pot starts flat on this date (symbol's own timezone); '' replays the last ~400 bars instead")
