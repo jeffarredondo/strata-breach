@@ -9,7 +9,7 @@ Three things it prints:
   1. DAILY POT   the rules replayed from --flat-from (take every signal, 33% of the pot, max 3 open, IAU/PPLT/IBIT before VGT/BNO, swing-low exit at the next open,
                  2 bps per side): trades, value, drawdown.  Same replay as scan.py's MODEL line.
   2. ADHERENCE   (needs --trades) model entries and exits vs your logged ones: signals taken / missed, fill vs the model's next open in bps (+ = worse for you), and rows not in the model.
-  3. MONTHLY POT the monthly_trend.py rule from --monthly-from: states, value, drawdown.
+  3. MONTHLY POT the monthly_trend.py rule from --monthly-from (including its trim guidance): states, value, drawdown.
 Each pot's return is placed in a cone: bootstrap paths drawn from the backtest trades (research/backtest_trades.csv) or months (research/backtest_monthly.csv)
 for the same elapsed time.  The cone starts after about 3 months; before that there is nothing to compare.
 """
@@ -119,22 +119,8 @@ def adherence(S, trades, res, path, pot_filter):
 
 
 def monthly_pot(D, flat_from, now):
-    N = len(D); cash, pos, prev, curve, ev, done = POT0, {}, POT0, [], {}, []
-    for sym, d in D.items():
-        me = mt.month_ends(d["Close"], now); sma = me.rolling(10).mean()
-        ev[sym] = (d, mt.events(d, me, sma, flat_from)) if len(me) > 10 else (d, [])
-    dates = sorted({t for d, _ in ev.values() for t in d.index if t >= flat_from}); cl = {k: d["Close"].reindex(dates).ffill() for k, (d, _) in ev.items()}
-    act = {(sym, d.index[j]): k for sym, (d, e) in ev.items() for k, j in e if j is not None}
-    for dt in dates:
-        for sym in D:
-            if act.get((sym, dt)) == "EXIT" and sym in pos: p = pos.pop(sym); px = D[sym].loc[dt, "Open"] * (1 - COST); cash += p["sh"] * px; done.append((px / p["px"] - 1) * 100)
-        for sym in D:
-            if act.get((sym, dt)) == "ENTER" and sym not in pos:
-                stake = min(prev / N, cash)
-                if stake > 0: px = D[sym].loc[dt, "Open"] * (1 + COST); cash -= stake; pos[sym] = dict(sh=stake / px, stake=stake, px=px)
-        eq = cash + sum(p["sh"] * cl[sym][dt] for sym, p in pos.items()); curve.append(eq); prev = eq
-    pend = [f"{k} {sym}" for sym, (d, e) in ev.items() for k, j in e if j is None]
-    return dict(dates=dates, curve=curve, pos=pos, eq=curve[-1] if curve else POT0, pend=pend, done=done)
+    """The monthly_trend.py model (entries 1/N of the pot, trim above 30% back to 20% at month-end, exits at signal), so both scripts use the same code."""
+    return mt.model_pot(D, flat_from, now, pot0=POT0)
 
 
 def main():
@@ -158,8 +144,8 @@ def main():
     if a.trades: print("\n2. ADHERENCE vs " + a.trades); adherence(S, trades, res, a.trades, a.pot)
     else: print("\n2. ADHERENCE: pass --trades YOUR_EXPORT.csv to compare your fills with the model")
     mf = pd.Timestamp(a.monthly_from); m = monthly_pot(D, mf, now); myrs = max((D["IAU"].index[-1] - mf).days, 0) / 365.25; mret = (m["eq"] / POT0 - 1) * 100
-    print(f"\n3. MONTHLY POT, flat from {a.monthly_from}, ${POT0:,.0f}, 1/{len(PRIORITY)} of the pot at entry, never rebalanced")
-    print(f"  value ${m['eq']:,.0f} ({mret:+.1f}%), max drawdown {dd(m['curve']) * 100:.1f}%, holding {', '.join(m['pos']) or 'none'}" + (f"; at next open: {', '.join(m['pend'])}" if m["pend"] else ""))
+    print(f"\n3. MONTHLY POT, flat from {a.monthly_from}, ${POT0:,.0f}, 1/{len(PRIORITY)} of the pot at entry, trim above {mt.TRIM_ABOVE:.0%} back to {mt.TRIM_TO:.0%} at month-end, never topped up")
+    print(f"  value ${m['eq']:,.0f} ({mret:+.1f}%), max drawdown {dd(m['curve']) * 100:.1f}%, holding {', '.join(m['pos']) or 'none'}" + (f"; at next open: {', '.join(m['pend'] + ['TRIM ' + k for k in m['trims']])}" if m["pend"] or m["trims"] else "") + (f"; trims so far {m['ntrim']}" if m["ntrim"] else ""))
     print(f"  metrics (perfect adherence), closed round trips: {metrics(m['done'])}")
     show_cone("monthly pot", myrs, mret, cone_monthly, int(round(myrs * 12)))
     print(f"\n(model fills = next open, 2 bps per side; the scan's trail is close-based, so intraday stop fills are not modeled here; run {pd.Timestamp.now(tz=ET).strftime('%Y-%m-%d %H:%M ET')})")

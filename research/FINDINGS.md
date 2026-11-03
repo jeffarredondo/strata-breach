@@ -320,3 +320,21 @@ Four or more symbols are ON on 54% of days. 8 ETFs at 12.5% at entry, never trim
 Per round trip, 5 symbols 2018-09+, monthly rule vs daily breakout: trips 37 (4.5 a year) vs 143 (17.6); win 38% vs 45%; average win / loss +88% / -6.0% vs +21.4% / -3.7%; profit factor 9.0 vs 4.8; mean +29.7% vs +7.7%; median -3.0% vs -1.2%; top-3 trades' share of wins 68% vs 40%; best +432% vs +346%. Monthly rule on the 8 ETFs since 2000: 171 trips, win 42%, average win / loss +26% / -5.8%, PF 3.3, mean +7.7%, median -1.8%, top-3 share 17%.
 
 **Early exits added to the monthly rule** (sell at the next open, re-enter only at the next month-end signal; constant-weight basis, CAGR / maxDD): daily close below the 10-month level, 5 symbols +16.9% / -16.0% (baseline +20.4% / -14.2%), 8 ETFs +5.2% / -12.6% (baseline +6.2% / -13.8%); 15% trailing stop +15.3% / -17.7% and +5.4% / -13.5%; 20% trailing stop +20.1% / -14.8% and +6.1% / -13.9%. Short round trips (two months or less, within +-3%) are 8% of trips.
+
+
+## Trim rule for the monthly pot (2026-11-03, 5 symbols at 20%, 2018-10 to 2026-10, 2 bps per side, trimmed cash idle)
+Trim-only variants (never add to a position) against the never-trimmed pot. "Trim to 20%" sells a position down to 1/5 of the pot value at that open.
+
+| Rule | CAGR | Max DD | CAGR/DD | Orders |
+|---|---|---|---|---|
+| Never trim | +24.9% | -30.3% | 0.82 | 77 |
+| Trim to 20% weekly / monthly / quarterly / daily | +18.6 / +19.3 / +21.8 / +18.4% | -14.7 / -16.8 / -18.6 / -13.7% | 1.27 / 1.15 / 1.17 / 1.34 | 330 / 187 / 124 / 656 |
+| Rebalance to 20% (trim and top up) weekly / monthly / daily | +19.9 / +20.3 / +20.2% | -15.3 / -16.7 / -14.4% | 1.30 / 1.21 / 1.41 | 1,486 / 404 / 6,856 |
+| Trim when a position is >30%, back to 20% | +21.6% | -18.3% | 1.18 | 89 |
+| Trim when >35%, back to 20% | +24.6% | -16.5% | 1.49 | 87 |
+| Trim when >40%, back to 20% | +22.5% | -22.7% | 0.99 | 83 |
+
+- Where to trim to, trigger 30%: back to 20% gave +21.6% / -18.3%; back to 25% +22.5% / -19.2%; back to 30% +23.6% / -19.6% with 161 orders (it re-fires on every small move).
+- When to check, trigger 30% back to 20%: daily +21.6% / -18.3%, weekly +21.9% / -18.4%, month-end close only +22.3% / -18.4%, all 89 orders. The rule uses the month-end check, which is when the script is run.
+- The 30 / 35 / 40% triggers do not move monotonically, so the specific trigger is not a tuned edge; 30% was chosen on principle (1.5x the entry weight).
+- Adopted rule (MONTHLY.md): at each month-end close, a position worth more than 30% of the pot is trimmed at the next open back to 20% of the pot; no top-ups. Backtest +22.5% / -18.4%, 8 trims and 2 more round trips than the never-trimmed run (trimmed cash funds entries that would otherwise be skipped). Implemented as `model_pot` in `monthly_trend.py`; `month_check.py` calls the same function.
